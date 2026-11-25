@@ -25,8 +25,8 @@ You need Python 3.10+ and a Spotify **Premium** account (Spotify requires Premiu
 
 ### 2. Install
 ```bash
-git clone https://github.com/ykwong2002/spotify-playlist-bot.git
-cd spotify-playlist-bot
+git clone https://github.com/junsongwong8-creator/Spotify-playlist.git
+cd Spotify-playlist
 python3 -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
