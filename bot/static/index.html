@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Playlist Bot</title>
+<style>
+:root {
+  --bg: #0f1114; --panel: #181b20; --panel2: #20242b; --line: #2b3038;
+  --text: #eef0f3; --muted: #9aa3ae; --accent: #1ed760; --accent-ink: #062b14;
+  --warn: #ffb347; --danger: #ff6b6b; --radius: 14px;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+header { display: flex; align-items: center; gap: 16px; padding: 16px 20px;
+  border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--bg); z-index: 5; flex-wrap: wrap; }
+header h1 { font-size: 18px; margin: 0; letter-spacing: .2px; }
+header .who { color: var(--muted); font-size: 13px; margin-left: auto; }
+nav { display: flex; gap: 6px; }
+nav button { background: none; border: 1px solid var(--line); color: var(--muted); }
+nav button.on { color: var(--text); border-color: var(--text); }
+main { max-width: 980px; margin: 0 auto; padding: 20px 16px 80px; }
+button { font: inherit; cursor: pointer; border-radius: 999px; padding: 8px 16px; border: 0; }
+button.primary { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+button.ghost { background: var(--panel2); color: var(--text); }
+button:disabled { opacity: .5; cursor: default; }
+a { color: var(--accent); }
+.bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; color: var(--muted); font-size: 13px; }
+.bar .grow { flex: 1; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; margin-bottom: 14px; }
+.track { display: grid; grid-template-columns: 112px 1fr; gap: 16px; }
+.track img.art { width: 112px; height: 112px; border-radius: 10px; object-fit: cover; background: var(--panel2); }
+.title { font-weight: 650; font-size: 17px; }
+.sub { color: var(--muted); font-size: 13px; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.chip { background: var(--panel2); color: var(--muted); font-size: 12px; padding: 3px 9px; border-radius: 999px; }
+.vibe { margin-top: 8px; font-style: italic; color: #cfd5dc; }
+.sugg { display: grid; grid-template-columns: 22px 44px 1fr auto; gap: 10px; align-items: center;
+  padding: 10px; border-radius: 10px; background: var(--panel2); margin-top: 8px; }
+.sugg img { width: 44px; height: 44px; border-radius: 6px; object-fit: cover; background: var(--line); }
+.sugg .why { color: var(--muted); font-size: 13px; }
+.conf { font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 999px; background: #123b22; color: var(--accent); }
+.conf.mid { background: #3b2f12; color: var(--warn); }
+.actions { display: flex; gap: 8px; margin-top: 12px; justify-content: flex-end; flex-wrap: wrap; }
+.status { font-size: 13px; color: var(--muted); }
+.status.added { color: var(--accent); }
+details summary { cursor: pointer; color: var(--muted); margin: 18px 0 10px; }
+textarea, input[type=text] { width: 100%; background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+  border-radius: 10px; padding: 10px 12px; font: inherit; }
+textarea { resize: vertical; min-height: 70px; }
+.mood-head { display: grid; grid-template-columns: 200px 1fr; gap: 18px; }
+.mood-head img.cover { width: 200px; height: 200px; border-radius: 12px; object-fit: cover; background: var(--panel2); }
+.mood-head input.name { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+.blurb { color: #cfd5dc; margin: 10px 0 4px; }
+.row { display: grid; grid-template-columns: 22px 28px 48px 1fr; gap: 10px; align-items: center; padding: 8px 4px; border-top: 1px solid var(--line); }
+.row img { width: 48px; height: 48px; border-radius: 6px; object-fit: cover; background: var(--panel2); }
+.row .n { color: var(--muted); font-size: 13px; text-align: right; }
+.badge { font-size: 11px; background: #2a2350; color: #b9a8ff; padding: 2px 7px; border-radius: 999px; margin-left: 6px; }
+.empty { text-align: center; color: var(--muted); padding: 40px 10px; }
+.toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg);
+  padding: 10px 18px; border-radius: 999px; font-weight: 600; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: 90vw; }
+.toast.show { opacity: 1; }
+.toast.err { background: var(--danger); color: #fff; }
+.login { text-align: center; padding: 60px 16px; }
+.login p { color: var(--muted); max-width: 520px; margin: 10px auto 22px; }
+.form-row { display: flex; gap: 10px; align-items: center; margin-top: 10px; flex-wrap: wrap; color: var(--muted); font-size: 13px; }
+.spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--muted); border-top-color: transparent;
+  border-radius: 50%; animation: spin .8s linear infinite; vertical-align: -2px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (max-width: 640px) {
+  .track { grid-template-columns: 72px 1fr; }
+  .track img.art { width: 72px; height: 72px; }
+  .mood-head { grid-template-columns: 1fr; }
+  .mood-head img.cover { width: 100%; height: auto; aspect-ratio: 1; }
+  .sugg { grid-template-columns: 22px 36px 1fr; }
+  .sugg .conf { grid-column: 3; justify-self: start; }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>Playlist Bot</h1>
+  <nav id="tabs" hidden>
+    <button data-tab="likes" class="on">New likes</button>
+    <button data-tab="moods">Mood playlists</button>
+  </nav>
+  <span class="who" id="who"></span>
+</header>
+<main id="main"><div class="empty"><span class="spinner"></span></div></main>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+let status = null, tab = "likes";
+try { tab = localStorage.getItem("tab") || "likes"; } catch {}
+
+function toast(msg, err) {
+  const t = $("#toast"); t.textContent = msg; t.className = "toast show" + (err ? " err" : "");
+  clearTimeout(t._h); t._h = setTimeout(() => t.className = "toast", 3500);
+}
+async function api(path, opts = {}) {
+  const r = await fetch(path, { headers: { "Content-Type": "application/json" }, ...opts });
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.detail || r.statusText);
+  return body;
+}
+function ago(ts) {
+  if (!ts) return "never";
+  const m = Math.round((Date.now() / 1000 - ts) / 60);
+  return m < 1 ? "just now" : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`;
+}
+const artists = t => t.artists.map(a => a.name).join(", ");
+const year = t => (t.album.release_date || "").slice(0, 4);
+
+async function boot() {
+  status = await api("/api/status");
+  if (!status.logged_in) return renderLogin();
+  $("#who").textContent = `${status.user.name} · matching: ${status.matching === "claude" ? "Claude" : "genres"}`;
+  $("#tabs").hidden = false;
+  document.querySelectorAll("#tabs button").forEach(b => {
+    b.classList.toggle("on", b.dataset.tab === tab);
+    b.onclick = () => { tab = b.dataset.tab; try { localStorage.setItem("tab", tab); } catch {} ; boot(); };
+  });
+  tab === "likes" ? renderLikes() : renderMoods();
+}
+
+function renderLogin() {
+  $("#main").innerHTML = `<div class="login">
+    <h2>Connect your Spotify</h2>
+    ${status.spotify_ready
+      ? `<p>The bot reads your Liked Songs and playlists, and only changes anything after you click Approve.</p>
+         <button class="primary" onclick="location.href='/login'">Log in with Spotify</button>`
+      : `<p>Add your <b>SPOTIFY_CLIENT_ID</b> and <b>SPOTIFY_CLIENT_SECRET</b> to the <code>.env</code> file, then restart the app.</p>`}
+    ${status.error ? `<p class="sub">${esc(status.error)}</p>` : ""}
+  </div>`;
+}
+
+// ---------------- New likes ----------------
+async function renderLikes() {
+  const props = await api("/api/proposals");
+  const pending = props.filter(p => p.status === "pending");
+  const rest = props.filter(p => p.status !== "pending");
+  $("#main").innerHTML = `
+    <div class="bar">
+      <span>Checks every ${status.watch_interval_minutes} min · last check ${ago(status.last_scan)}</span>
+      ${status.last_scan_error ? `<span style="color:var(--danger)">Last check failed: ${esc(status.last_scan_error)}</span>` : ""}
+      <span class="grow"></span>
+      <button class="ghost" id="backfill">Check my last 50 likes</button>
+      <button class="primary" id="scan">Check now</button>
+    </div>
+    ${pending.length ? pending.map(proposalCard).join("") :
+      `<div class="empty">No songs waiting for review. Like something on Spotify and it will show up here.</div>`}
+    ${rest.length ? `<details><summary>History (${rest.length})</summary>${rest.map(historyCard).join("")}</details>` : ""}`;
+  $("#scan").onclick = e => scan(e.target);
+  $("#backfill").onclick = e => scan(e.target, 50);
+  document.querySelectorAll("[data-approve]").forEach(b => b.onclick = () => approve(b.dataset.approve, b));
+  document.querySelectorAll("[data-dismiss]").forEach(b => b.onclick = () => dismiss(b.dataset.dismiss));
+}
+
+function trackHead(p) {
+  const t = p.track;
+  return `<img class="art" src="${esc(t.album.image || "")}" alt="">
+    <div>
+      <div class="title">${esc(t.name)}</div>
+      <div class="sub">${esc(artists(t))} · ${esc(t.album.name)}${year(t) ? " · " + year(t) : ""}
+        ${t.url ? ` · <a href="${esc(t.url)}" target="_blank" rel="noopener">Open in Spotify</a>` : ""}</div>
+      ${p.vibe ? `<div class="vibe">“${esc(p.vibe)}”</div>` : ""}
+      ${p.genres?.length ? `<div class="chips">${p.genres.slice(0, 6).map(g => `<span class="chip">${esc(g)}</span>`).join("")}</div>` : ""}
+    </div>`;
+}
+
+function proposalCard(p) {
+  return `<div class="card" id="p-${p.id}">
+    <div class="track">${trackHead(p)}</div>
+    ${p.suggestions.map(s => `
+      <label class="sugg">
+        <input type="checkbox" value="${esc(s.playlist_id)}" ${s.confidence >= 0.75 ? "checked" : ""}>
+        <img src="${esc(s.playlist_image || "")}" alt="">
+        <div><b>${esc(s.playlist_name)}</b><div class="why">${esc(s.reason)}</div></div>
+        <span class="conf ${s.confidence < 0.75 ? "mid" : ""}">${Math.round(s.confidence * 100)}% fit</span>
+      </label>`).join("")}
+    <div class="actions">
+      <button class="ghost" data-dismiss="${p.id}">Skip this song</button>
+      <button class="primary" data-approve="${p.id}">Add to selected playlists</button>
+    </div>
+  </div>`;
+}
+
+function historyCard(p) {
+  const lines = p.status === "no_match"
+    ? `<div class="status">No playlist was a strong enough match.</div>`
+    : p.suggestions.map(s => `<div class="status ${s.status === "added" ? "added" : ""}">
+        ${s.status === "added" ? "Added to" : "Skipped"} ${esc(s.playlist_name)}</div>`).join("") || `<div class="status">Skipped</div>`;
+  return `<div class="card"><div class="track">${trackHead(p)}</div><div style="margin-top:8px">${lines}</div></div>`;
+}
+
+async function scan(btn, backfill) {
+  btn.disabled = true; const old = btn.textContent; btn.innerHTML = `<span class="spinner"></span> Checking…`;
+  try {
+    const r = await api("/api/scan" + (backfill ? `?backfill=${backfill}` : ""), { method: "POST" });
+    toast(r.status === "busy" ? "A check is already running" : `${r.new_tracks} new song${r.new_tracks === 1 ? "" : "s"} found`);
+  } catch (e) { toast(e.message, true); }
+  btn.disabled = false; btn.textContent = old; boot();
+}
+
+async function approve(id, btn) {
+  const ids = [...document.querySelectorAll(`#p-${id} input:checked`)].map(i => i.value);
+  if (!ids.length) return toast("Tick at least one playlist, or skip the song", true);
+  btn.disabled = true;
+  try {
+    const r = await api(`/api/proposals/${id}/approve`, { method: "POST", body: JSON.stringify({ playlist_ids: ids }) });
+    toast(`Added to ${r.added_to.join(", ")}`);
+  } catch (e) { toast(e.message, true); }
+  boot();
+}
+async function dismiss(id) {
+  await api(`/api/proposals/${id}/dismiss`, { method: "POST" }); boot();
+}
+
+// ---------------- Mood playlists ----------------
+async function renderMoods() {
+  const moods = await api("/api/moods");
+  const drafts = moods.filter(m => m.status === "draft");
+  const made = moods.filter(m => m.status === "created");
+  $("#main").innerHTML = `
+    <div class="card">
+      <div class="title" style="margin-bottom:8px">What are you in the mood for?</div>
+      <textarea id="mood" placeholder="e.g. rainy Sunday morning, slow and warm  ·  late-night drive with synths  ·  gym, aggressive, no ballads"></textarea>
+      <div class="form-row">
+        <label>Songs: <input type="range" id="len" min="10" max="50" value="25" oninput="lenv.textContent=this.value"> <span id="lenv">25</span></label>
+        <span class="grow" style="flex:1"></span>
+        <button class="primary" id="curate">Curate playlist</button>
+      </div>
+    </div>
+    ${drafts.map(moodDraft).join("")}
+    ${made.length ? `<details open><summary>Created (${made.length})</summary>${made.map(moodMade).join("")}</details>` : ""}
+    ${!drafts.length && !made.length ? `<div class="empty">Describe a mood above. You'll get a draft to review before anything is created.</div>` : ""}`;
+  $("#curate").onclick = curate;
+  document.querySelectorAll("[data-create]").forEach(b => b.onclick = () => createMood(b.dataset.create, b));
+  document.querySelectorAll("[data-discard]").forEach(b => b.onclick = async () => {
+    await api(`/api/moods/${b.dataset.discard}/discard`, { method: "POST" }); boot();
+  });
+}
+
+function moodDraft(m) {
+  return `<div class="card" id="m-${m.id}">
+    <div class="mood-head">
+      <img class="cover" src="/api/moods/${m.id}/cover.jpg" alt="Cover preview" onerror="this.style.visibility='hidden'">
+      <div>
+        <div class="sub">Draft for “${esc(m.mood)}”</div>
+        <input type="text" class="name" value="${esc(m.name)}">
+        <textarea class="desc" maxlength="300">${esc(m.description)}</textarea>
+        <div class="blurb">${esc(m.blurb)}</div>
+        <div class="chips">${(m.vibe_tags || []).map(t => `<span class="chip">${esc(t)}</span>`).join("")}</div>
+      </div>
+    </div>
+    <div style="margin-top:14px">
+      ${m.picks.map((p, i) => `
+        <label class="row">
+          <input type="checkbox" value="${esc(p.track.id)}" checked>
+          <span class="n">${i + 1}</span>
+          <img src="${esc(p.track.album.image || "")}" alt="">
+          <div><b>${esc(p.track.name)}</b>${p.source === "new" ? `<span class="badge">new find</span>` : ""}
+            <div class="sub">${esc(artists(p.track))} · ${esc(p.track.album.name)}${year(p.track) ? " · " + year(p.track) : ""}</div>
+            <div class="sub">${esc(p.reason)}</div></div>
+        </label>`).join("")}
+    </div>
+    <div class="actions">
+      <label class="status"><input type="checkbox" class="public"> Make public</label>
+      <button class="ghost" data-discard="${m.id}">Discard</button>
+      <button class="primary" data-create="${m.id}">Approve &amp; create in Spotify</button>
+    </div>
+  </div>`;
+}
+
+function moodMade(m) {
+  return `<div class="card"><div class="track">
+    <img class="art" src="/api/moods/${m.id}/cover.jpg" alt="" onerror="this.style.visibility='hidden'">
+    <div><div class="title">${esc(m.name)}</div>
+      <div class="sub">${m.picks.length} songs · from “${esc(m.mood)}”</div>
+      <div class="blurb">${esc(m.description)}</div>
+      ${m.playlist_url ? `<a href="${esc(m.playlist_url)}" target="_blank" rel="noopener">Open in Spotify</a>` : ""}</div>
+  </div></div>`;
+}
+
+async function curate() {
+  const mood = $("#mood").value.trim();
+  if (!mood) return toast("Describe a mood first", true);
+  const btn = $("#curate"); btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> Curating… (can take a minute)`;
+  try {
+    await api("/api/moods", { method: "POST", body: JSON.stringify({ mood, length: +$("#len").value }) });
+  } catch (e) { toast(e.message, true); }
+  boot();
+}
+
+async function createMood(id, btn) {
+  const card = $(`#m-${id}`);
+  const ids = [...card.querySelectorAll(".row input:checked")].map(i => i.value);
+  btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> Creating…`;
+  try {
+    const r = await api(`/api/moods/${id}/approve`, { method: "POST", body: JSON.stringify({
+      name: $(".name", card).value, description: $(".desc", card).value, track_ids: ids, public: $(".public", card).checked }) });
+    toast(`Created “${r.name}” with ${r.picks.length} songs`);
+  } catch (e) { toast(e.message, true); }
+  boot();
+}
+
+boot().catch(e => { $("#main").innerHTML = `<div class="empty">${esc(e.message)}</div>`; });
+</script>
+</body>
+</html>
