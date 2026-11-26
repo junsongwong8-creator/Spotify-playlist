@@ -2,5 +2,6 @@
 __pycache__/
 *.pyc
 .env
-data/
+organiser.db
+organiser.db-*
 .pytest_cache/
