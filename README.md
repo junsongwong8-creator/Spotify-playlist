@@ -16,7 +16,9 @@ Spotify removed mood data (energy, danceability, etc.) and recommendations for n
 
 ## Setup (one time)
 
-You need Python 3.10+ and a Spotify **Premium** account (Spotify requires Premium for developer apps).
+You need **Python 3.11 or newer** and a Spotify **Premium** account (Spotify requires Premium for developer apps).
+
+> **Check your Python first:** run `python3 --version`. macOS ships Python 3.9, which is too old (pip will fail with *No matching distribution found for anthropic*). Install 3.12 with `brew install python@3.12` or from <https://www.python.org/downloads/>, then use `python3.12` in the commands below.
 
 ### 1. Create a Spotify developer app
 1. Go to <https://developer.spotify.com/dashboard> and click **Create app**.
@@ -27,8 +29,9 @@ You need Python 3.10+ and a Spotify **Premium** account (Spotify requires Premiu
 ```bash
 git clone https://github.com/junsongwong8-creator/Spotify-playlist.git
 cd Spotify-playlist
-python3 -m venv .venv
+python3.12 -m venv .venv            # or python3, if `python3 --version` is 3.11+
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install --upgrade pip
 pip install -r requirements.txt
 cp .env.example .env               # Windows: copy .env.example .env
 ```
