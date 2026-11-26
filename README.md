@@ -1,5 +1,9 @@
 # Spotify Playlist Organiser
 
+**Use it online: <https://junsongwong8-creator.github.io/Spotify-playlist/>.** Nothing to install. The website (in `docs/`) runs entirely in your browser: your Spotify login, settings and optional Anthropic key are stored only in that browser. The site's first screen walks you through adding its address as a Redirect URI in your Spotify app.
+
+The rest of this README covers the optional local version (`python app.py`), which has the same features.
+
 A local app that keeps your Spotify playlists tidy, and never changes anything until you approve it.
 
 - **Review likes.** Each new liked song appears as a big card with its album art, a vibe line, a playable preview, and the *one* playlist it fits best, with a fit score and a reason. Swipe or drag the card right to add it, or left to skip. You can also use the arrow keys.
