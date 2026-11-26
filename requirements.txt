@@ -1,6 +1,5 @@
-anthropic>=2.14,<3
-fastapi>=0.115
-uvicorn>=0.30
-httpx>=0.27
+Flask>=3.0,<4
+requests>=2.31,<3
 pillow>=10
-pydantic>=2.7
+# Claude vibe matching (optional; only installs on Python 3.10+)
+anthropic>=2.14,<3; python_version >= "3.10"
