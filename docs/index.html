@@ -1,0 +1,642 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Playlist Organiser</title>
+<meta name="description" content="Sort new Spotify likes into the playlist they fit best, and build mood playlists. Runs in your browser.">
+<style>
+:root {
+  --bg: #0b0d10; --panel: #15181d; --panel2: #1d2128; --line: #2a2f38;
+  --text: #f2f4f7; --muted: #98a2b0; --accent: #1ed760; --ink: #04210f;
+  --danger: #ff6b6b; --violet: #a78bfa; --r: 18px;
+  --ease: cubic-bezier(.2,.8,.2,1);
+}
+* { box-sizing: border-box; }
+html { color-scheme: dark; }
+body { margin: 0; background: var(--bg); color: var(--text); min-height: 100vh;
+  font: 15px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+button { font: inherit; cursor: pointer; border: 0; border-radius: 999px; padding: 9px 18px; color: var(--text); background: var(--panel2);
+  transition: transform .15s var(--ease), background .2s, opacity .2s; }
+button:hover { background: #262b34; } button:active { transform: scale(.96); }
+button.primary { background: var(--accent); color: var(--ink); font-weight: 700; }
+button.primary:hover { background: #3be477; }
+button:disabled { opacity: .45; cursor: default; transform: none; }
+a { color: var(--accent); }
+input, textarea { font: inherit; color: var(--text); background: var(--panel2); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; width: 100%; }
+input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: transparent; }
+kbd { font: 12px ui-monospace, monospace; background: var(--panel2); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 6px; padding: 1px 6px; color: var(--muted); }
+
+/* header */
+header { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 12px 20px; background: rgba(11,13,16,.82); backdrop-filter: blur(14px); border-bottom: 1px solid var(--line); }
+.logo { display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: .2px; }
+.logo .eq { display: flex; gap: 2px; align-items: flex-end; height: 18px; }
+.logo .eq i { width: 4px; background: var(--accent); border-radius: 2px; animation: eq 1.1s ease-in-out infinite; }
+.logo .eq i:nth-child(2) { animation-delay: .2s } .logo .eq i:nth-child(3) { animation-delay: .4s }
+@keyframes eq { 0%,100% { height: 30% } 50% { height: 100% } }
+.tabs { display: flex; gap: 4px; background: var(--panel); padding: 4px; border-radius: 999px; }
+.tabs button { background: none; color: var(--muted); padding: 7px 16px; }
+.tabs button.on { background: var(--text); color: var(--bg); font-weight: 650; }
+.tabs .count { display: inline-grid; place-items: center; min-width: 20px; height: 20px; margin-left: 6px; padding: 0 6px; font-size: 12px;
+  border-radius: 999px; background: var(--accent); color: var(--ink); font-weight: 700; }
+.who { margin-left: auto; display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: 13px; }
+.mode { padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); font-size: 12px; }
+.mode.claude { border-color: #5b4bb4; color: var(--violet); }
+
+main { max-width: 1040px; margin: 0 auto; padding: 22px 16px 140px; }
+.muted { color: var(--muted); } .small { font-size: 13px; }
+.bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 18px; }
+.grow { flex: 1; }
+.fade-in { animation: fadeIn .35s var(--ease) both; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } }
+
+/* review card */
+.stage { position: relative; }
+.card { position: relative; overflow: hidden; border-radius: 26px; border: 1px solid var(--line); background: var(--panel);
+  touch-action: pan-y; user-select: none; transition: transform .35s var(--ease), opacity .35s var(--ease); }
+.backdrop, .shade, .stamp { pointer-events: none; }
+.card .backdrop { position: absolute; inset: -40px; background-size: cover; background-position: center; filter: blur(48px) saturate(1.4); opacity: .45; }
+.card .shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(11,13,16,.25), rgba(11,13,16,.92) 70%); }
+.card .inner { position: relative; display: grid; grid-template-columns: 300px 1fr; gap: 28px; padding: 28px; }
+.art { width: 300px; height: 300px; border-radius: 16px; object-fit: cover; background: var(--panel2);
+  box-shadow: 0 24px 60px rgba(0,0,0,.55); transition: transform .4s var(--ease); }
+.card:hover .art { transform: rotate(-1.5deg) scale(1.02); }
+.eyebrow { font-size: 12px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--muted); }
+.song { font-size: 34px; font-weight: 800; line-height: 1.1; margin: 6px 0 6px; }
+.byline { color: #d4d9e0; }
+.vibe { margin: 14px 0 0; font-size: 18px; font-style: italic; color: #e9e3ff; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
+.chip { font-size: 12px; padding: 4px 10px; border-radius: 999px; background: rgba(255,255,255,.08); color: #cfd6df; }
+.player { margin-top: 16px; border-radius: 12px; overflow: hidden; height: 80px; background: rgba(0,0,0,.3); }
+.player iframe { width: 100%; height: 80px; border: 0; }
+.fits { margin-top: 18px; display: grid; gap: 10px; }
+.fit { display: grid; grid-template-columns: 54px 1fr auto; gap: 12px; align-items: center; text-align: left; width: 100%;
+  padding: 10px 14px 10px 10px; border-radius: 14px; background: rgba(255,255,255,.06); border: 2px solid transparent; }
+.fit:hover { background: rgba(255,255,255,.1); }
+.fit.on { border-color: var(--accent); background: rgba(30,215,96,.1); }
+.fit img { width: 54px; height: 54px; border-radius: 8px; object-fit: cover; background: var(--panel2); }
+.fit .pname { font-weight: 700; }
+.fit .why { font-size: 13px; color: var(--muted); }
+.meter { width: 120px; }
+.meter .track { height: 6px; border-radius: 3px; background: rgba(255,255,255,.12); overflow: hidden; }
+.meter .fill { height: 100%; background: var(--accent); border-radius: 3px; width: 0; transition: width .8s var(--ease); }
+.meter .pct { font-size: 12px; color: var(--muted); text-align: right; margin-top: 4px; }
+.check { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--muted); display: grid; place-items: center; margin-left: 10px; }
+.fit.on .check { background: var(--accent); border-color: var(--accent); }
+.fit.on .check::after { content: ""; width: 9px; height: 5px; border: solid var(--ink); border-width: 0 0 2px 2px; transform: rotate(-45deg) translate(1px,-1px); }
+.actions { display: flex; gap: 12px; justify-content: center; margin-top: 18px; flex-wrap: wrap; }
+.actions button { padding: 14px 28px; font-size: 16px; }
+.hint { text-align: center; margin-top: 10px; font-size: 12px; color: var(--muted); }
+.stamp { position: absolute; top: 30px; z-index: 3; padding: 6px 16px; border: 3px solid; border-radius: 10px; font-weight: 900; font-size: 22px;
+  letter-spacing: 2px; opacity: 0; transform: rotate(-12deg); pointer-events: none; }
+.stamp.add { right: 30px; color: var(--accent); } .stamp.skip { left: 30px; color: var(--danger); transform: rotate(12deg); }
+.card.fly-right { transform: translateX(120%) rotate(12deg); opacity: 0; }
+.card.fly-left { transform: translateX(-120%) rotate(-12deg); opacity: 0; }
+.queue { display: flex; gap: 8px; margin-top: 20px; overflow-x: auto; padding-bottom: 6px; align-items: center; }
+.queue img { width: 46px; height: 46px; border-radius: 8px; object-fit: cover; opacity: .55; cursor: pointer; flex: none; transition: opacity .2s, transform .2s; }
+.queue img:hover { opacity: 1; transform: translateY(-2px); }
+.queue img.cur { opacity: 1; outline: 2px solid var(--accent); outline-offset: 2px; }
+.empty { text-align: center; padding: 70px 16px; color: var(--muted); }
+.empty .big { font-size: 22px; color: var(--text); font-weight: 700; margin-bottom: 6px; }
+.list { display: grid; gap: 8px; }
+.li { display: grid; grid-template-columns: 44px 1fr auto; gap: 12px; align-items: center; padding: 8px; border-radius: 12px; background: var(--panel); }
+.li img { width: 44px; height: 44px; border-radius: 6px; object-fit: cover; background: var(--panel2); }
+.ok { color: var(--accent); } .no { color: var(--muted); }
+details > summary { cursor: pointer; color: var(--muted); margin: 26px 0 10px; list-style: none; }
+details > summary::before { content: "▸ "; } details[open] > summary::before { content: "▾ "; }
+
+/* mood studio */
+.prompt { background: radial-gradient(1200px 300px at 0% 0%, rgba(167,139,250,.16), transparent), radial-gradient(800px 300px at 100% 100%, rgba(30,215,96,.12), transparent), var(--panel);
+  border: 1px solid var(--line); border-radius: 26px; padding: 26px; }
+.prompt h2 { margin: 0 0 4px; font-size: 26px; }
+.moods { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 14px; }
+.mchip { padding: 9px 16px; border-radius: 999px; background: var(--g, var(--panel2)); color: #fff; font-weight: 600; border: 2px solid transparent; }
+.mchip.on { border-color: #fff; transform: translateY(-1px); }
+.prompt textarea { min-height: 64px; resize: vertical; }
+.row2 { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+input[type=range] { width: 160px; padding: 0; accent-color: var(--accent); background: none; border: 0; }
+.loader { display: none; align-items: center; gap: 14px; margin-top: 18px; color: var(--muted); }
+.loader.on { display: flex; }
+.loader .eq { display: flex; gap: 3px; align-items: flex-end; height: 26px; }
+.loader .eq i { width: 5px; background: var(--violet); border-radius: 3px; animation: eq 1s ease-in-out infinite; }
+.loader .eq i:nth-child(2) { animation-delay: .15s } .loader .eq i:nth-child(3) { animation-delay: .3s } .loader .eq i:nth-child(4) { animation-delay: .45s }
+
+.draft { margin-top: 22px; border-radius: 26px; overflow: hidden; border: 1px solid var(--line); background: var(--panel); }
+.hero { position: relative; overflow: hidden; display: grid; grid-template-columns: 240px 1fr; gap: 24px; padding: 26px; }
+.hero .backdrop { position: absolute; inset: -40px; background-size: cover; filter: blur(50px) saturate(1.4); opacity: .4; }
+.hero .shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(21,24,29,.2), var(--panel)); }
+.hero > :not(.backdrop):not(.shade) { position: relative; }
+.mosaic { width: 240px; height: 240px; border-radius: 14px; overflow: hidden; display: grid; grid-template-columns: 1fr 1fr; box-shadow: 0 24px 60px rgba(0,0,0,.5); background: var(--panel2); }
+.mosaic.one { grid-template-columns: 1fr; }
+.mosaic img { width: 100%; height: 100%; object-fit: cover; display: block; animation: fadeIn .4s var(--ease) both; }
+.hero input.name { font-size: 30px; font-weight: 800; background: transparent; border-color: transparent; padding: 4px 8px; margin-left: -8px; }
+.hero input.name:hover { border-color: var(--line); }
+.hero textarea.desc { background: rgba(0,0,0,.25); min-height: 60px; resize: vertical; margin-top: 6px; }
+.counter { font-size: 12px; color: var(--muted); text-align: right; }
+.blurb { color: #dde2e8; margin: 10px 0 0; }
+.meta { color: var(--muted); font-size: 13px; margin-top: 10px; }
+.tracks { padding: 6px 14px 14px; }
+.trow { display: grid; grid-template-columns: 20px 26px 48px 1fr auto auto; gap: 12px; align-items: center; padding: 8px; border-radius: 12px;
+  transition: background .2s, opacity .3s, transform .3s var(--ease); }
+.trow:hover { background: var(--panel2); }
+.trow.removed { opacity: .35; }
+.trow.removed .t-title { text-decoration: line-through; }
+.trow.dragging { opacity: .5; } .trow.over { box-shadow: inset 0 2px 0 var(--accent); }
+.grip { cursor: grab; color: var(--muted); letter-spacing: -2px; font-size: 14px; user-select: none; }
+.trow .n { color: var(--muted); font-size: 13px; text-align: right; }
+.trow img { width: 48px; height: 48px; border-radius: 6px; object-fit: cover; background: var(--panel2); }
+.t-title { font-weight: 650; }
+.badge { font-size: 11px; background: rgba(167,139,250,.18); color: var(--violet); padding: 2px 8px; border-radius: 999px; margin-left: 6px; vertical-align: 1px; }
+.iconbtn { width: 36px; height: 36px; padding: 0; display: grid; place-items: center; background: transparent; color: var(--muted); }
+.iconbtn:hover { background: var(--panel2); color: var(--text); }
+.iconbtn.playing { color: var(--accent); }
+.dfoot { display: flex; gap: 10px; align-items: center; justify-content: flex-end; flex-wrap: wrap; padding: 14px 22px 22px; border-top: 1px solid var(--line); }
+.made { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; }
+.tile { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 12px; transition: transform .2s var(--ease); }
+.tile:hover { transform: translateY(-3px); }
+.tile .mosaic { width: 100%; height: auto; aspect-ratio: 1; }
+.tile .tname { font-weight: 700; margin-top: 10px; }
+.celebrate { text-align: center; padding: 40px 20px; }
+.celebrate .big { font-size: 26px; font-weight: 800; }
+
+/* mini player + toast */
+.mini { position: fixed; left: 50%; bottom: 16px; transform: translate(-50%, 140%); width: min(560px, calc(100% - 32px)); z-index: 30;
+  background: #000; border-radius: 14px; box-shadow: 0 20px 50px rgba(0,0,0,.6); visibility: hidden; opacity: 0;
+  transition: transform .35s var(--ease), opacity .25s, visibility .35s; }
+.mini.on { transform: translate(-50%, 0); visibility: visible; opacity: 1; }
+.mini iframe { display: block; width: 100%; height: 80px; border: 0; border-radius: 14px; }
+.mini .x { position: absolute; top: -12px; right: -12px; width: 28px; height: 28px; padding: 0; background: var(--panel2); border: 1px solid var(--line); }
+.toast { position: fixed; top: 74px; left: 50%; transform: translate(-50%, -20px); opacity: 0; z-index: 40; pointer-events: none;
+  background: var(--text); color: var(--bg); font-weight: 650; padding: 10px 18px; border-radius: 999px; transition: all .25s var(--ease); max-width: 90vw; }
+.toast.on { opacity: 1; transform: translate(-50%, 0); }
+.toast.err { background: var(--danger); color: #fff; }
+.connect { text-align: center; padding: 90px 16px; }
+.connect h2 { font-size: 32px; margin: 0 0 8px; }
+.connect p { max-width: 520px; margin: 0 auto 24px; color: var(--muted); }
+
+.gear { margin-left: 4px; font-size: 18px; }
+[hidden] { display: none !important; }
+.modal { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.6); display: grid; place-items: center; padding: 16px; animation: fadeIn .2s both; }
+.modal[hidden] { display: none; }
+.sheet { width: min(520px, 100%); background: var(--panel); border: 1px solid var(--line); border-radius: 20px; padding: 22px; display: grid; gap: 12px; }
+.sheet h3 { margin: 0; }
+.sheet label { display: grid; gap: 6px; font-size: 14px; }
+.sheet .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+select { font: inherit; color: var(--text); background: var(--panel2); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+.steps { text-align: left; max-width: 560px; margin: 0 auto; display: grid; gap: 14px; }
+.step { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 16px 18px; }
+.step b.n { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: var(--ink); margin-right: 8px; font-size: 13px; }
+.copy { display: flex; gap: 8px; margin-top: 10px; }
+.copy code { flex: 1; background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; overflow-x: auto; white-space: nowrap; }
+.progress { color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 8px; }
+.progress .eq { display: inline-flex; gap: 2px; align-items: flex-end; height: 14px; }
+.progress .eq i { width: 3px; background: var(--accent); border-radius: 2px; animation: eq 1s ease-in-out infinite; }
+.progress .eq i:nth-child(2) { animation-delay: .15s } .progress .eq i:nth-child(3) { animation-delay: .3s }
+@media (max-width: 760px) {
+  .card .inner, .hero { grid-template-columns: 1fr; padding: 18px; gap: 16px; }
+  .art { width: 100%; height: auto; aspect-ratio: 1; }
+  .mosaic { width: 100%; height: auto; aspect-ratio: 1; }
+  .song { font-size: 26px; }
+  .fit { grid-template-columns: 44px 1fr; } .fit img { width: 44px; height: 44px; }
+  .fit .meterwrap { grid-column: 2; display: flex; align-items: center; }
+  .trow { grid-template-columns: 26px 44px 1fr auto auto; } .trow .grip { display: none; }
+  .who .name { display: none; }
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo"><span class="eq"><i></i><i></i><i></i></span> Playlist Organiser</div>
+  <nav class="tabs" id="tabs" hidden>
+    <button data-tab="review">Review likes<span class="count" id="pending-count" hidden></span></button>
+    <button data-tab="moods">Mood studio</button>
+  </nav>
+  <div class="who" id="who"></div>
+  <button class="iconbtn gear" id="gear" title="Settings" aria-label="Settings">⚙</button>
+</header>
+<main id="main"></main>
+<div class="mini" id="mini"><button class="x" onclick="closePlayer()" aria-label="Close player">✕</button><div id="mini-slot"></div></div>
+<div class="toast" id="toast"></div>
+<div class="modal" id="modal" hidden><div class="sheet" role="dialog" aria-labelledby="set-title">
+  <h3 id="set-title">Settings</h3>
+  <label>Spotify Client ID<input id="s-client" autocomplete="off" spellcheck="false" placeholder="32 letters and numbers from your Spotify app"></label>
+  <label>Anthropic API key <span class="muted small">(optional, for Claude matching)</span>
+    <input id="s-key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…"></label>
+  <p class="small muted">Stored only in this browser and sent only to Spotify and Anthropic. Charged to your Anthropic account (a few cents per check).</p>
+  <div class="two">
+    <label>Playlists per song<select id="s-max"><option value="1">1 (best fit only)</option><option value="2">Up to 2</option></select></label>
+    <label>How strict<select id="s-min"><option value="0.8">Very strict</option><option value="0.7">Strict</option><option value="0.6">Relaxed</option></select></label>
+  </div>
+  <div class="row2"><button id="s-logout">Disconnect Spotify</button><span class="grow"></span><button id="s-cancel">Cancel</button><button class="primary" id="s-save">Save</button></div>
+</div></div>
+
+<script src="engine.js"></script>
+<script>
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const artists = t => t.artists.map(a => a.name).join(", ");
+const year = t => (t.album.release_date || "").slice(0, 4);
+const embed = (id, h = 80) => `<iframe src="https://open.spotify.com/embed/track/${encodeURIComponent(id)}?utm_source=generator&theme=0" height="${h}" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>`;
+const store = { get(k, d) { try { return localStorage.getItem(k) ?? d; } catch { return d; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
+
+let status = null, tab = store.get("tab", "review"), queue = [], cur = 0, busy = false, playingId = null;
+
+function toast(msg, err) {
+  const t = $("#toast"); t.textContent = msg; t.className = "toast on" + (err ? " err" : "");
+  clearTimeout(t._h); t._h = setTimeout(() => t.className = "toast" + (err ? " err" : ""), 3200);
+}
+function ago(ts) {
+  if (!ts) return "not yet";
+  const m = Math.round((Date.now() / 1000 - ts) / 60);
+  return m < 1 ? "just now" : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`;
+}
+function play(id) {
+  if (playingId === id) return closePlayer();
+  playingId = id; $("#mini-slot").innerHTML = embed(id); $("#mini").classList.add("on");
+  $$("[data-play]").forEach(b => b.classList.toggle("playing", b.dataset.play === id));
+}
+function closePlayer() {
+  playingId = null; $("#mini").classList.remove("on"); setTimeout(() => { if (!playingId) $("#mini-slot").innerHTML = ""; }, 400);
+  $$("[data-play]").forEach(b => b.classList.remove("playing"));
+}
+
+async function boot() {
+  status = await api("/api/status");
+  if (!status.logged_in) return renderConnect();
+  $("#who").innerHTML = `<span class="mode ${status.matching}" title="${esc(status.matching_note || "")}">${status.matching === "claude" ? "Claude matching" : "Simple matching"}</span>
+    <span class="name">${esc(status.user.name)}</span>`;
+  $("#tabs").hidden = false;
+  $$("#tabs button").forEach(b => {
+    b.classList.toggle("on", b.dataset.tab === tab);
+    b.onclick = () => { if (tab === b.dataset.tab) return; tab = b.dataset.tab; store.set("tab", tab); boot(); };
+  });
+  tab === "review" ? renderReview() : renderMoods();
+}
+
+function renderConnect() {
+  $("#tabs").hidden = true; $("#who").innerHTML = "";
+  const s = settings();
+  $("#main").innerHTML = `<div class="connect fade-in">
+    <h2>Your liked songs, sorted by vibe</h2>
+    <p>Each new like gets the one playlist it fits best, and you can build mood playlists on request. Nothing changes in Spotify until you approve it. Your login stays in this browser.</p>
+    <div class="steps">
+      <div class="step"><b class="n">1</b><b>In your Spotify app's settings, add this Redirect URI</b>
+        <div class="small muted" style="margin-top:4px">At <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener">developer.spotify.com/dashboard</a>, open your app, then Settings → Edit → Redirect URIs. Paste this, click Add, then Save.</div>
+        <div class="copy"><code id="redir">${esc(REDIRECT_URI)}</code><button id="copy">Copy</button></div></div>
+      <div class="step"><b class="n">2</b><b>Paste your app's Client ID</b>
+        <div class="small muted" style="margin-top:4px">It's on the same Settings page. No client secret is needed.</div>
+        <div class="copy"><input id="cid" value="${esc(s.clientId || "")}" placeholder="Client ID" spellcheck="false" autocomplete="off"></div></div>
+      <div class="step"><b class="n">3</b><b>Connect</b>
+        <div style="margin-top:12px"><button class="primary" id="connect" style="padding:12px 28px">Connect Spotify</button></div></div>
+    </div>
+    ${status.error ? `<p class="small" style="color:var(--danger);margin-top:18px">${esc(status.error)}</p>` : ""}</div>`;
+  $("#copy").onclick = async () => { try { await navigator.clipboard.writeText(REDIRECT_URI); toast("Copied"); } catch { toast("Select the address and copy it", true); } };
+  $("#connect").onclick = async () => {
+    const id = $("#cid").value.trim();
+    if (!/^[0-9a-f]{32}$/i.test(id)) { $("#cid").focus(); return toast("That doesn't look like a Client ID (32 letters and numbers)", true); }
+    saveSettings({ clientId: id });
+    try { await login(); } catch (e) { toast(e.message, true); }
+  };
+}
+
+function openSettings() {
+  const s = settings();
+  $("#s-client").value = s.clientId || ""; $("#s-key").value = s.anthropicKey || "";
+  $("#s-max").value = String(s.maxPerSong); $("#s-min").value = String(s.minConfidence);
+  $("#modal").hidden = false;
+}
+$("#gear").onclick = openSettings;
+$("#s-cancel").onclick = () => $("#modal").hidden = true;
+$("#modal").onclick = e => { if (e.target.id === "modal") $("#modal").hidden = true; };
+$("#s-save").onclick = () => {
+  saveSettings({ clientId: $("#s-client").value.trim(), anthropicKey: $("#s-key").value.trim(), maxPerSong: +$("#s-max").value, minConfidence: +$("#s-min").value });
+  $("#modal").hidden = true; toast("Saved. New settings apply to the next check."); boot();
+};
+$("#s-logout").onclick = () => { logout(); $("#modal").hidden = true; boot(); };
+
+// ================= Review likes =================
+async function renderReview(keepIndex) {
+  const props = await api("/api/proposals");
+  queue = props.filter(p => p.status === "pending");
+  const nomatch = props.filter(p => p.status === "no_match");
+  const done = props.filter(p => p.status === "done" || p.status === "dismissed");
+  const badge = $("#pending-count"); badge.hidden = !queue.length; badge.textContent = queue.length;
+  cur = Math.min(keepIndex ?? 0, Math.max(queue.length - 1, 0));
+  $("#main").innerHTML = `
+    <div class="bar small muted">
+      <span>Checks for new likes whenever this page is open · last check ${ago(status.last_scan)}</span>
+      ${status.last_scan_error ? `<span style="color:var(--danger)">Last check failed: ${esc(status.last_scan_error)}</span>` : ""}
+      <span class="grow"></span>
+      <button id="older">Look at my last 50 likes</button>
+      <button class="primary" id="scan">Check for new likes</button>
+    </div>
+    <div class="progress" id="progress" hidden><span class="eq"><i></i><i></i><i></i></span><span id="progress-text">Checking…</span></div>
+    <div class="stage" id="stage"></div>
+    <div class="queue" id="queue"></div>
+    ${nomatch.length ? `<details><summary>${nomatch.length} song${nomatch.length > 1 ? "s" : ""} didn't clearly fit any playlist</summary>
+      <div class="list">${nomatch.map(p => liRow(p, `<span class="no small">No clear fit</span>`)).join("")}</div></details>` : ""}
+    ${done.length ? `<details><summary>History (${done.length})</summary><div class="list">${done.slice(0, 100).map(p => {
+      const added = p.suggestions.filter(s => s.status === "added").map(s => s.playlist_name);
+      return liRow(p, added.length ? `<span class="ok small">Added to ${esc(added.join(", "))}</span>` : `<span class="no small">Skipped</span>`);
+    }).join("")}</div></details>` : ""}`;
+  $("#scan").onclick = e => scan(e.currentTarget);
+  $("#older").onclick = e => scan(e.currentTarget, 50);
+  drawCard();
+  // First visit after connecting: run the first check straight away instead of waiting for the timer.
+  // Checks happen while this page is open: on arrival if one is due, then every hour.
+  const due = !status.last_scan || (Date.now() / 1000 - status.last_scan) > status.scan_interval_minutes * 60;
+  if (due && !status.scanning && !renderReview.autoran) { renderReview.autoran = true; scan($("#scan")); }
+}
+
+function liRow(p, right) {
+  const t = p.track;
+  return `<div class="li"><img src="${esc(t.album.image || "")}" alt="" loading="lazy">
+    <div><b>${esc(t.name)}</b><div class="small muted">${esc(artists(t))}</div></div>
+    <div style="display:flex;gap:8px;align-items:center">${right}<button class="iconbtn" data-play="${esc(t.id)}" onclick="play('${esc(t.id)}')" title="Play preview">▶</button></div></div>`;
+}
+
+function drawCard() {
+  const stage = $("#stage");
+  if (!queue.length) {
+    stage.innerHTML = `<div class="empty fade-in"><div class="big">You're all caught up</div>
+      Like songs on Spotify as usual. New ones will show up here with the playlist they fit best.</div>`;
+    $("#queue").innerHTML = ""; return;
+  }
+  const p = queue[cur], t = p.track;
+  stage.innerHTML = `
+    <div class="card fade-in" id="card">
+      <div class="backdrop" style="background-image:url('${esc(t.album.image || "")}')"></div><div class="shade"></div>
+      <div class="stamp add">ADD</div><div class="stamp skip">SKIP</div>
+      <div class="inner">
+        <img class="art" src="${esc(t.album.image || "")}" alt="${esc(t.album.name)} cover" draggable="false">
+        <div>
+          <div class="eyebrow">New like ${cur + 1} of ${queue.length}${t.added_at ? " · " + new Date(t.added_at).toLocaleDateString() : ""}</div>
+          <div class="song">${esc(t.name)}</div>
+          <div class="byline">${esc(artists(t))} · ${esc(t.album.name)}${year(t) ? " · " + year(t) : ""}</div>
+          ${p.vibe ? `<div class="vibe">“${esc(p.vibe)}”</div>` : ""}
+          ${p.genres?.length ? `<div class="chips">${p.genres.slice(0, 5).map(g => `<span class="chip">${esc(g)}</span>`).join("")}</div>` : ""}
+          <div class="player">${embed(t.id)}</div>
+          <div class="eyebrow" style="margin-top:18px">Best fit${p.suggestions.length > 1 ? "s" : ""}</div>
+          <div class="fits">${p.suggestions.map(s => `
+            <button class="fit on" data-pl="${esc(s.playlist_id)}">
+              <img src="${esc(s.playlist_image || "")}" alt="" onerror="this.style.visibility='hidden'">
+              <div><div class="pname">${esc(s.playlist_name)}</div><div class="why">${esc(s.reason)}</div></div>
+              <div class="meterwrap" style="display:flex;align-items:center">
+                <div class="meter"><div class="track"><div class="fill" data-w="${Math.round(s.confidence * 100)}"></div></div>
+                <div class="pct">${Math.round(s.confidence * 100)}% fit</div></div><span class="check"></span></div>
+            </button>`).join("")}</div>
+        </div>
+      </div>
+    </div>
+    <div class="actions">
+      <button id="skip">Skip</button>
+      <button class="primary" id="add">Add to playlist</button>
+    </div>
+    <div class="hint">Swipe or drag the card, or use <kbd>←</kbd> skip · <kbd>→</kbd> add · <kbd>space</kbd> play</div>`;
+  requestAnimationFrame(() => $$(".fill").forEach(f => f.style.width = f.dataset.w + "%"));
+  $$(".fit").forEach(b => b.onclick = () => { b.classList.toggle("on"); syncAdd(); });
+  $("#skip").onclick = () => decide("skip");
+  $("#add").onclick = () => decide("add");
+  syncAdd(); enableSwipe($("#card"));
+  $("#queue").innerHTML = queue.length > 1 ? `<span class="small muted" style="flex:none">Up next</span>` + queue.map((q, i) =>
+    `<img src="${esc(q.track.album.image || "")}" class="${i === cur ? "cur" : ""}" data-i="${i}" title="${esc(q.track.name)}" alt="">`).join("") : "";
+  $$("#queue img").forEach(img => img.onclick = () => { cur = +img.dataset.i; drawCard(); });
+}
+
+function syncAdd() {
+  const n = $$(".fit.on").length, b = $("#add");
+  if (b) { b.disabled = !n; b.textContent = n > 1 ? `Add to ${n} playlists` : "Add to playlist"; }
+}
+
+function enableSwipe(card) {
+  let x0 = null, dx = 0;
+  const stamps = { add: $(".stamp.add", card), skip: $(".stamp.skip", card) };
+  card.addEventListener("pointerdown", e => {
+    if (e.target.closest("button, iframe, a")) return;
+    x0 = e.clientX; dx = 0; card.style.transition = "none"; card.setPointerCapture(e.pointerId);
+  });
+  card.addEventListener("pointermove", e => {
+    if (x0 === null) return;
+    dx = e.clientX - x0;
+    card.style.transform = `translateX(${dx}px) rotate(${dx / 30}deg)`;
+    stamps.add.style.opacity = Math.max(0, Math.min(1, dx / 120));
+    stamps.skip.style.opacity = Math.max(0, Math.min(1, -dx / 120));
+  });
+  const end = () => {
+    if (x0 === null) return; x0 = null; card.style.transition = "";
+    if (dx > 120 && !$("#add").disabled) decide("add");
+    else if (dx < -120) decide("skip");
+    else { card.style.transform = ""; stamps.add.style.opacity = 0; stamps.skip.style.opacity = 0; }
+  };
+  card.addEventListener("pointerup", end); card.addEventListener("pointercancel", end);
+}
+
+async function decide(kind) {
+  if (busy || !queue.length) return;
+  const p = queue[cur];
+  const ids = $$(".fit.on").map(b => b.dataset.pl);
+  if (kind === "add" && !ids.length) return toast("Pick a playlist first, or skip", true);
+  busy = true;
+  const card = $("#card"); card.style.transform = "";
+  card.classList.add(kind === "add" ? "fly-right" : "fly-left");
+  try {
+    if (kind === "add") {
+      const r = await api(`/api/proposals/${p.id}/approve`, { method: "POST", body: JSON.stringify({ playlist_ids: ids }) });
+      toast(`Added “${p.track.name}” to ${r.added_to.join(" & ")}`);
+    } else {
+      await api(`/api/proposals/${p.id}/dismiss`, { method: "POST" });
+    }
+    if (playingId === p.track.id) closePlayer();
+    await new Promise(r => setTimeout(r, 250));
+    await renderReview(cur);
+  } catch (e) { toast(e.message, true); card.classList.remove("fly-right", "fly-left"); }
+  busy = false;
+}
+
+async function scan(btn, backfill) {
+  const old = btn.textContent; btn.disabled = true; btn.textContent = "Checking…";
+  const bar = $("#progress"); if (bar) bar.hidden = false;
+  const progress = m => { const t = $("#progress-text"); if (t) t.textContent = m; };
+  try {
+    const r = await api("/api/scan" + (backfill ? `?backfill=${backfill}` : ""), { method: "POST", progress });
+    if (r.status === "busy") toast("Already checking, one moment");
+    else toast(r.new_songs ? `${r.new_songs} new song${r.new_songs > 1 ? "s" : ""}, ${r.with_suggestions} with a clear playlist fit` : "No new likes since last check");
+  } catch (e) { toast(e.message, true); }
+  btn.disabled = false; btn.textContent = old;
+  status = await api("/api/status"); renderReview();
+}
+
+document.addEventListener("keydown", e => {
+  if (tab !== "review" || e.target.closest("input, textarea") || !queue.length) return;
+  if (e.key === "ArrowRight") { e.preventDefault(); if (!$("#add")?.disabled) decide("add"); }
+  if (e.key === "ArrowLeft") { e.preventDefault(); decide("skip"); }
+  if (e.key === " ") { e.preventDefault(); play(queue[cur].track.id); }
+});
+
+// ================= Mood studio =================
+const MOODS = [
+  ["Late-night drive", "linear-gradient(135deg,#1e3a8a,#7c3aed)"], ["Rainy day", "linear-gradient(135deg,#334155,#0ea5e9)"],
+  ["Gym hype", "linear-gradient(135deg,#dc2626,#f97316)"], ["Deep focus", "linear-gradient(135deg,#065f46,#0d9488)"],
+  ["Sunny & happy", "linear-gradient(135deg,#ca8a04,#f43f5e)"], ["In my feels", "linear-gradient(135deg,#4c1d95,#be185d)"],
+  ["Chill evening", "linear-gradient(135deg,#0f766e,#6366f1)"], ["Throwbacks", "linear-gradient(135deg,#9a3412,#a16207)"],
+  ["Getting ready to go out", "linear-gradient(135deg,#be123c,#7e22ce)"], ["Wind down for sleep", "linear-gradient(135deg,#1e293b,#312e81)"],
+];
+let drafts = {};
+
+async function renderMoods() {
+  const list = await api("/api/moods");
+  drafts = Object.fromEntries(list.map(m => [m.id, m]));
+  const open = list.filter(m => m.status === "draft"), made = list.filter(m => m.status === "created");
+  $("#main").innerHTML = `
+    <section class="prompt fade-in">
+      <h2>How are you feeling?</h2>
+      <div class="muted">Pick a mood or describe it in your own words. I'll draft a playlist you can tweak before anything is created.</div>
+      <div class="moods">${MOODS.map(([m, g]) => `<button class="mchip" style="--g:${g}" data-m="${esc(m)}">${esc(m)}</button>`).join("")}</div>
+      <textarea id="mood" placeholder="e.g. slow Sunday morning, coffee, warm acoustic, nothing too sad"></textarea>
+      <div class="row2">
+        <label class="small muted">Length <input type="range" id="len" min="10" max="50" step="5" value="${store.get("len", 25)}"> <b id="lenv">${store.get("len", 25)}</b> songs</label>
+        <span class="grow"></span>
+        <button class="primary" id="curate">Curate my playlist</button>
+      </div>
+      <div class="loader" id="loader"><span class="eq"><i></i><i></i><i></i><i></i></span><span id="loadmsg">Digging through your liked songs…</span></div>
+    </section>
+    <div id="drafts">${open.map(draftHTML).join("")}</div>
+    ${made.length ? `<h3 style="margin:34px 0 14px">Playlists you've created</h3><div class="made">${made.map(tileHTML).join("")}</div>` : ""}`;
+  $$(".mchip").forEach(b => b.onclick = () => {
+    b.classList.toggle("on");
+    $("#mood").value = $$(".mchip.on").map(x => x.dataset.m.toLowerCase()).join(", ");
+  });
+  $("#len").oninput = e => { $("#lenv").textContent = e.target.value; store.set("len", e.target.value); };
+  $("#curate").onclick = curate;
+  $("#mood").onkeydown = e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) curate(); };
+  open.forEach(m => wireDraft(m.id));
+}
+
+function mosaicHTML(images) {
+  const imgs = images.filter(Boolean).slice(0, 4);
+  if (!imgs.length) return `<div class="mosaic one"></div>`;
+  return imgs.length < 4 ? `<div class="mosaic one"><img src="${esc(imgs[0])}" alt=""></div>`
+    : `<div class="mosaic">${imgs.map(u => `<img src="${esc(u)}" alt="">`).join("")}</div>`;
+}
+
+function draftHTML(m) {
+  const mins = Math.round(m.picks.reduce((a, p) => a + (p.track.duration_ms || 0), 0) / 60000);
+  const fresh = m.picks.filter(p => p.source === "new").length;
+  return `<section class="draft fade-in" id="d-${m.id}">
+    <div class="hero">
+      <div class="backdrop" style="background-image:url('${esc(m.picks[0]?.track.album.image || "")}')"></div><div class="shade"></div>
+      <div class="cover">${mosaicHTML(m.picks.map(p => p.track.album.image))}</div>
+      <div>
+        <div class="eyebrow">Draft · for “${esc(m.mood)}”</div>
+        <input class="name" value="${esc(m.name)}" aria-label="Playlist name">
+        <textarea class="desc" maxlength="300" aria-label="Description">${esc(m.description)}</textarea>
+        <div class="counter"><span class="cc">${m.description.length}</span>/300</div>
+        <div class="blurb">${esc(m.blurb)}</div>
+        <div class="chips">${(m.vibe_tags || []).map(t => `<span class="chip">${esc(t)}</span>`).join("")}</div>
+        <div class="meta"><span class="kept">${m.picks.length}</span> songs · about ${mins} min${fresh ? ` · ${fresh} new find${fresh > 1 ? "s" : ""}` : ""}</div>
+      </div>
+    </div>
+    <div class="tracks">${m.picks.map((p, i) => `
+      <div class="trow" draggable="true" data-id="${esc(p.track.id)}">
+        <span class="grip" title="Drag to reorder">⋮⋮</span>
+        <span class="n">${i + 1}</span>
+        <img src="${esc(p.track.album.image || "")}" alt="" loading="lazy">
+        <div><span class="t-title">${esc(p.track.name)}</span>${p.source === "new" ? `<span class="badge">new find</span>` : ""}
+          <div class="small muted">${esc(artists(p.track))} · ${esc(p.reason)}</div></div>
+        <button class="iconbtn" data-play="${esc(p.track.id)}" title="Play">▶</button>
+        <button class="iconbtn rm" title="Remove">✕</button>
+      </div>`).join("")}</div>
+    <div class="dfoot">
+      <label class="small muted"><input type="checkbox" class="public" style="width:auto"> Public</label>
+      <span class="grow"></span>
+      <button class="discard">Discard</button>
+      <button class="primary create">Create in Spotify</button>
+    </div>
+  </section>`;
+}
+
+function tileHTML(m) {
+  return `<a class="tile" href="${esc(m.playlist_url || "#")}" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">
+    ${mosaicHTML(m.picks.map(p => p.track.album.image))}
+    <div class="tname">${esc(m.name)}</div><div class="small muted">${m.picks.length} songs · ${esc(m.mood)}</div></a>`;
+}
+
+function wireDraft(id) {
+  const root = $(`#d-${id}`); if (!root) return;
+  const refresh = () => {
+    const rows = $$(".trow", root), kept = rows.filter(r => !r.classList.contains("removed"));
+    rows.forEach((r, i) => $(".n", r).textContent = i + 1);
+    $(".kept", root).textContent = kept.length;
+    const imgs = kept.map(r => $("img", r).src);
+    $(".cover", root).innerHTML = mosaicHTML(imgs);
+    $(".create", root).disabled = !kept.length;
+  };
+  $(".desc", root).oninput = e => $(".cc", root).textContent = e.target.value.length;
+  $$(".rm", root).forEach(b => b.onclick = () => {
+    const row = b.closest(".trow"); row.classList.toggle("removed");
+    b.textContent = row.classList.contains("removed") ? "↺" : "✕";
+    b.title = row.classList.contains("removed") ? "Put back" : "Remove";
+    refresh();
+  });
+  $$("[data-play]", root).forEach(b => b.onclick = () => play(b.dataset.play));
+  let dragged = null;
+  $$(".trow", root).forEach(row => {
+    row.addEventListener("dragstart", () => { dragged = row; row.classList.add("dragging"); });
+    row.addEventListener("dragend", () => { row.classList.remove("dragging"); $$(".over", root).forEach(r => r.classList.remove("over")); dragged = null; refresh(); });
+    row.addEventListener("dragover", e => { e.preventDefault(); $$(".over", root).forEach(r => r.classList.remove("over")); if (row !== dragged) row.classList.add("over"); });
+    row.addEventListener("drop", e => { e.preventDefault(); if (dragged && row !== dragged) row.parentNode.insertBefore(dragged, row); });
+  });
+  $(".discard", root).onclick = async () => {
+    root.style.opacity = 0; root.style.transform = "scale(.98)";
+    await api(`/api/moods/${id}/discard`, { method: "POST" }); setTimeout(renderMoods, 200);
+  };
+  $(".create", root).onclick = async e => {
+    const btn = e.currentTarget, ids = $$(".trow", root).filter(r => !r.classList.contains("removed")).map(r => r.dataset.id);
+    btn.disabled = true; btn.textContent = "Creating…";
+    try {
+      const r = await api(`/api/moods/${id}/approve`, { method: "POST", body: JSON.stringify({
+        name: $(".name", root).value, description: $(".desc", root).value, track_ids: ids, public: $(".public", root).checked }) });
+      root.innerHTML = `<div class="celebrate fade-in">${mosaicHTML(r.picks.map(p => p.track.album.image)).replace('class="mosaic', 'style="width:180px;height:180px;margin:0 auto 16px" class="mosaic')}
+        <div class="big">“${esc(r.name)}” is in your Spotify</div>
+        <p class="muted">${r.picks.length} songs${r.cover_uploaded ? ", with its album-art cover" : ""}.</p>
+        ${r.playlist_url ? `<a href="${esc(r.playlist_url)}" target="_blank" rel="noopener"><button class="primary">Open in Spotify</button></a>` : ""}</div>`;
+    } catch (err) { toast(err.message, true); btn.disabled = false; btn.textContent = "Create in Spotify"; }
+  };
+}
+
+async function curate() {
+  const mood = $("#mood").value.trim();
+  if (!mood) { $("#mood").focus(); return toast("Pick or describe a mood first", true); }
+  const btn = $("#curate"); btn.disabled = true;
+  const msgs = ["Digging through your liked songs…", "Feeling out the vibe…", "Ordering the songs so they flow…", "Finding a few new gems…", "Almost there…"];
+  let i = 0; $("#loader").classList.add("on"); $("#loadmsg").textContent = msgs[0];
+  const tick = setInterval(() => $("#loadmsg").textContent = msgs[Math.min(++i, msgs.length - 1)], 4000);
+  try {
+    const d = await api("/api/moods", { method: "POST", body: JSON.stringify({ mood, length: +$("#len").value }),
+      progress: m => { clearInterval(tick); $("#loadmsg").textContent = m; } });
+    if (!d.picks.length) toast("Couldn't find songs for that mood. Try different words.", true);
+    drafts[d.id] = d;
+    $("#drafts").insertAdjacentHTML("afterbegin", draftHTML(d)); wireDraft(d.id);
+    $(`#d-${d.id}`).scrollIntoView({ behavior: "smooth", block: "start" });
+    $("#mood").value = ""; $$(".mchip.on").forEach(b => b.classList.remove("on"));
+  } catch (e) { toast(e.message, true); }
+  clearInterval(tick); $("#loader").classList.remove("on"); btn.disabled = false;
+}
+
+(async () => {
+  try {
+    const msg = await handleRedirect();
+    if (msg) toast(msg === "connected" ? "Spotify connected" : msg, msg !== "connected");
+  } catch (e) { toast(e.message, true); }
+  await boot();
+  setInterval(async () => {
+    if (!loggedIn() || tab !== "review" || busy) return;
+    status = await api("/api/status");
+    if ((Date.now() / 1000 - (status.last_scan || 0)) > status.scan_interval_minutes * 60 && $("#scan")) scan($("#scan"));
+  }, 5 * 60 * 1000);
+})().catch(e => { $("#main").innerHTML = `<div class="empty">${esc(e.message)}</div>`; });
+</script>
+</body>
+</html>
